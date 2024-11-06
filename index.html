@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Editor de Partitura con VexFlow</title>
+    <script src="https://cdn.jsdelivr.net/npm/vexflow/build/cjs/vexflow.js"></script>
+    <style>
+        .container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            height: 100vh;
+        }
+
+        .imagenes-container {
+            width: 300px;
+            border-right: 1px solid #ccc;
+            padding-right: 20px;
+        }
+
+        .imagenes-scroll {
+            height: calc(100vh - 100px);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .partitura {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            padding: 20px;
+            background-color: #fff;
+            min-height: 200px;
+            border: 1px solid #ccc;
+        }
+
+        .compas {
+            min-width: 300px;
+            height: auto;
+            min-height: 200px;
+            border: 2px solid #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            cursor: pointer;
+            padding: 20px 15px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        .controles {
+            margin: 20px;
+        }
+
+        button {
+            font-size: 20px;
+            margin: 0 10px;
+            padding: 5px 15px;
+            cursor: pointer;
+        }
+
+        .numero-compas {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .nombre-compas {
+            position: absolute;
+            top: 2px;
+            right: 25px;
+            font-size: 12px;
+            color: #666;
+            cursor: pointer;
+            padding: 2px 5px;
+            border: 1px dashed transparent;
+        }
+
+        .eliminar-compas {
+            display: none;
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background-color: red;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 14px;
+            line-height: 20px;
+            cursor: pointer;
+            text-align: center;
+            z-index: 10;
+        }
+
+        .compas:hover .eliminar-compas {
+            display: block;
+        }
+
+        .imagen-compas {
+            position: relative;
+            width: 100%;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background: #fff;
+            border-radius: 4px;
+        }
+
+        .imagen-upload {
+            width: 100%;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        .json-output {
+            margin: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+
+        .compas-content {
+            width: 100%;
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .compas.seleccionado {
+            border: 2px solid #007bff;
+            box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+        }
+
+        .imagen-compas.seleccionado {
+            border: 2px solid #007bff;
+            box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+        }
+
+        .popup-notas {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            max-width: 80%;
+            max-height: 80vh;
+            overflow: auto;
+        }
+
+        .popup-notas pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+
+        .popup-notas button {
+            margin-top: 10px;
+            padding: 5px 15px;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+
+        .vf-notehead {
+            transition: fill 0.2s ease;
+        }
+
+        .nota-tooltip {
+            pointer-events: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            font-size: 12px;
+        }
+
+        .vf-notehead {
+            transition: fill 0.2s ease;
+        }
+
+        .nota-tooltip {
+            pointer-events: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            font-size: 12px;
+        }
+
+        .armadura-container {
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-width: 500px;
+            /* Aumentado para coincidir con el nuevo ancho */
+        }
+
+        .armadura-content {
+            height: 120px;
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            background: white;
+        }
+
+        .armadura-display {
+            min-height: 40px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .nota-armadura {
+            padding: 5px 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .nota-armadura.selected {
+            background: #007bff;
+            color: white;
+        }
+
+        .armadura-json {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+
+        .armadura-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .play-icon {
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+
+        .playing .play-icon {
+            transform: rotate(90deg);
+        }
+
+        #playArmaduraBtn {
+            min-width: 80px;
+        }
+
+        #playArmaduraBtn.playing {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .armadura-json-container, .json-container {
+            margin-top: 10px;
+        }
+
+        .toggle-json {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .toggle-json:hover {
+            background: #e9ecef;
+        }
+
+        .toggle-icon {
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+
+        .toggle-json.active .toggle-icon {
+            transform: rotate(90deg);
+        }
+
+        .json-output, .armadura-json {
+            margin-top: 10px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+            transition: max-height 0.3s ease-out;
+            overflow: hidden;
+        }
+
+        .collapsed {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="imagenes-container">
+            <h3>Imágenes</h3>
+            <div class="imagenes-scroll" id="imagenes-scroll">
+                <div id="images-preview"></div>
+                <pre id="images-info"></pre>
+            </div>
+        </div>
+
+
+        <!-- Primero, reorganizar estos divs dentro de main-content -->
+        <div class="main-content">
+            <div class="controles-wrapper">
+                <div class="armadura-container">
+                    <h4>Armadura</h4>
+                    <div class="armadura-content" id="armadura-content">
+                        <!-- Aquí irá el pentagrama de VexFlow -->
+                    </div>
+                    <div class="armadura-controls">
+                        <button onclick="agregarNotaArmadura()">Añadir nota</button>
+                        <button onclick="eliminarNotaArmadura()">Eliminar nota</button>
+                        <button id="playArmaduraBtn" onclick="togglePlayArmadura()">
+                            <span class="play-icon">▶</span> Play
+                        </button>
+                    </div>
+                    <div class="armadura-json-container">
+                        <button class="toggle-json" onclick="toggleJson('armadura-json')">
+                            <span class="toggle-icon">▶</span> Mostrar JSON
+                        </button>
+                        <div id="armadura-json" class="armadura-json collapsed"></div>
+                    </div>
+                </div>
+                <div class="controles">
+                    <button onclick="agregarCompas()">+</button>
+                    <button onclick="eliminarCompas()">-</button>
+                </div>
+            </div>
+            <div class="partitura" id="partitura">
+            </div>
+            <div class="json-container">
+                <button class="toggle-json" onclick="toggleJson('json-output')">
+                    <span class="toggle-icon">▶</span> Mostrar JSON
+                </button>
+                <div id="json-output" class="json-output collapsed"></div>
+            </div>
+        </div>
+
+        <script>
+            const VF = Vex.Flow;
+            let contadorCompases = 0;
+            let compasSeleccionado = null;
+
+
+
+            // Al inicio del script, después de las variables existentes
+            let notaSeleccionada = null;
+            let notasCompasActual = [];
+
+            // Añadir al inicio del archivo, junto con las otras variables globales
+            let armadura = [];
+            let notaArmaduraSeleccionada = null;
+            const SIMBOLOS = {
+                'sharp': '♯',
+                'flat': '♭',
+                'natural': '♮'
+            };
+
+            // Objeto para mapear teclas a notas
+            const NOTAS_MAP = {
+                'a': 'c',
+                's': 'd',
+                'd': 'e',
+                'f': 'f',
+                'g': 'g',
+                'h': 'a',
+                'j': 'b'
+            };
+
+            // Objeto para mapear duraciones
+            const DURACIONES = {
+                '1': 'w',  // redonda
+                '2': 'h',  // blanca
+                '4': 'q',  // negra
+                '8': '8',  // corchea
+                '6': '16'  // semicorchea
+            };
+
+
+            // Agregar este objeto al inicio del archivo junto con los otros mapeos
+            const NOTAS_ORDEN = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
+
+
+
+            function crearPentagramaVexFlow(contenedor, notas = null) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        contenedor.innerHTML = '';
+                        const renderer = new VF.Renderer(contenedor, VF.Renderer.Backends.SVG);
+                        renderer.resize(250, 150);
+                        const context = renderer.getContext();
+
+                        const stave = new VF.Stave(10, 40, 230);
+
+                        if (contenedor.closest('.compas').querySelector('.numero-compas').textContent === '1') {
+                            stave.addClef('treble').addTimeSignature('4/4');
+                        }
+
+                        stave.setContext(context).draw();
+
+                        // Usar notas proporcionadas o crear notas por defecto
+                        notasCompasActual = notas || [
+                            { pitch: 'c/4', duration: 'q' },
+                            { pitch: 'd/4', duration: 'q' },
+                            { pitch: 'e/4', duration: 'q' },
+                            { pitch: 'f/4', duration: 'q' }
+                        ];
+
+                        const staveNotes = notasCompasActual.map(nota =>
+                            new VF.StaveNote({
+                                clef: "treble",
+                                keys: [nota.pitch],
+                                duration: nota.duration
+                            })
+                        );
+
+                        const voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+                        voice.addTickables(staveNotes);
+                        new VF.Formatter().joinVoices([voice]).format([voice], 200);
+                        voice.draw(context, stave);
+
+                        // Agregar interactividad a las notas
+                        setTimeout(() => {
+                            const noteheads = contenedor.querySelectorAll('.vf-notehead');
+                            noteheads.forEach((notehead, index) => {
+                                notehead.style.cursor = 'pointer';
+
+                                notehead.addEventListener('mouseover', () => {
+                                    notehead.style.fill = '#007bff';
+                                });
+
+                                notehead.addEventListener('mouseout', () => {
+                                    if (index !== notaSeleccionada) {
+                                        notehead.style.fill = 'black';
+                                    }
+                                });
+
+                                notehead.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    notaSeleccionada = index;
+                                    redibujarCompas();
+                                });
+                            });
+
+                            if (notaSeleccionada !== null && noteheads[notaSeleccionada]) {
+                                noteheads[notaSeleccionada].style.fill = '#007bff';
+                            }
+
+                            resolve(staveNotes);
+                        }, 0);
+
+                    } catch (error) {
+                        console.error('Error en crearPentagramaVexFlow:', error);
+                        reject(error);
+                    }
+                });
+            }
+
+            function crearPentagramaArmadura() {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const contenedor = document.getElementById('armadura-content');
+                        contenedor.innerHTML = '';
+
+                        const renderer = new VF.Renderer(contenedor, VF.Renderer.Backends.SVG);
+                        renderer.resize(500, 120);
+                        const context = renderer.getContext();
+
+                        const stave = new VF.Stave(10, 20, 480);
+                        stave.addClef('treble');
+                        stave.setContext(context).draw();
+
+                        if (armadura.length > 0) {
+                            const staveNotes = armadura.map(nota => {
+                                let pitch = nota.nota.toLowerCase();
+
+                                if (nota.alteracion === 'sharp') {
+                                    pitch += '#';
+                                } else if (nota.alteracion === 'flat') {
+                                    pitch += 'b';
+                                }
+
+                                const staveNote = new VF.StaveNote({
+                                    clef: "treble",
+                                    keys: [`${pitch}/${nota.octava}`],  // Usamos la octava de la nota
+                                    duration: 'q'
+                                });
+
+                                if (nota.alteracion === 'natural') {
+                                    staveNote.addModifier(new VF.Accidental("n"), 0);
+                                } else if (nota.alteracion === 'sharp') {
+                                    staveNote.addModifier(new VF.Accidental("#"), 0);
+                                } else if (nota.alteracion === 'flat') {
+                                    staveNote.addModifier(new VF.Accidental("b"), 0);
+                                }
+
+                                return staveNote;
+                            });
+
+                            const voice = new VF.Voice({ num_beats: armadura.length, beat_value: 4 });
+                            voice.addTickables(staveNotes);
+                            new VF.Formatter().joinVoices([voice]).format([voice], 450);
+                            voice.draw(context, stave);
+
+                            setTimeout(() => {
+                                const noteheads = contenedor.querySelectorAll('.vf-notehead');
+                                noteheads.forEach((notehead, index) => {
+                                    notehead.style.cursor = 'pointer';
+
+                                    notehead.addEventListener('mouseover', () => {
+                                        notehead.style.fill = '#007bff';
+                                    });
+
+                                    notehead.addEventListener('mouseout', () => {
+                                        if (index !== notaArmaduraSeleccionada) {
+                                            notehead.style.fill = 'black';
+                                        }
+                                    });
+
+                                    notehead.addEventListener('click', (e) => {
+                                        e.stopPropagation();
+                                        seleccionarNotaArmadura(index);
+                                    });
+                                });
+
+                                if (notaArmaduraSeleccionada !== null && noteheads[notaArmaduraSeleccionada]) {
+                                    noteheads[notaArmaduraSeleccionada].style.fill = '#007bff';
+                                }
+
+                                resolve(staveNotes);
+                            }, 0);
+                        } else {
+                            resolve([]);
+                        }
+
+                    } catch (error) {
+                        console.error('Error en crearPentagramaArmadura:', error);
+                        reject(error);
+                    }
+                });
+            }
+
+            function seleccionarNota(index, compas) {
+                notaSeleccionada = index;
+                const noteheads = compas.querySelectorAll('.vf-notehead');
+
+                // Resetear todos los colores
+                noteheads.forEach(notehead => {
+                    notehead.style.fill = 'black';
+                });
+
+                // Colorear la nota seleccionada
+                if (noteheads[index]) {
+                    noteheads[index].style.fill = '#007bff';
+                }
+            }
+
+            function mostrarTooltip(nota, event) {
+                const tooltip = document.createElement('div');
+                tooltip.className = 'nota-tooltip';
+                tooltip.style.position = 'absolute';
+                tooltip.style.left = `${event.pageX + 10}px`;
+                tooltip.style.top = `${event.pageY + 10}px`;
+                tooltip.style.background = 'white';
+                tooltip.style.padding = '5px';
+                tooltip.style.border = '1px solid #ccc';
+                tooltip.style.borderRadius = '4px';
+                tooltip.style.zIndex = '1000';
+                tooltip.textContent = `${nota.pitch} - ${nota.duration}`;
+                document.body.appendChild(tooltip);
+                return tooltip;
+            }
+
+            function manejarTeclado(e) {
+                if (notaArmaduraSeleccionada !== null) {
+                    // Prevenir el scroll con las flechas solo cuando el scroll está deshabilitado
+                    if (!scrollEnabled && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                        e.preventDefault();
+                    }
+
+                    try {
+                        switch (e.key) {
+                            case 'ArrowLeft':
+                                // Navegar a la nota anterior
+                                notaArmaduraSeleccionada = notaArmaduraSeleccionada > 0 ? 
+                                    notaArmaduraSeleccionada - 1 : armadura.length - 1;
+                                actualizarArmadura();
+                                return;
+
+                            case 'ArrowRight':
+                                // Navegar a la siguiente nota
+                                notaArmaduraSeleccionada = (notaArmaduraSeleccionada + 1) % armadura.length;
+                                actualizarArmadura();
+                                return;
+
+                            case 'ArrowUp':
+                                const nota = armadura[notaArmaduraSeleccionada];
+                                if (e.shiftKey) {
+                                    nota.octava = Math.min(8, nota.octava + 1);
+                                } else {
+                                    const indiceActual = encontrarIndiceCromatico(nota.nota, nota.alteracion);
+                                    console.log('Subiendo nota:', {
+                                        notaActual: nota.nota,
+                                        alteracionActual: nota.alteracion,
+                                        indiceActual: indiceActual
+                                    });
+
+                                    if (indiceActual === -1) {
+                                        // Intentar normalizar la nota si no se encuentra
+                                        const notaNormalizada = normalizarAlteracion(nota.nota, nota.alteracion);
+                                        nota.nota = notaNormalizada.nota;
+                                        nota.alteracion = notaNormalizada.alteracion;
+                                        console.log('Nota normalizada:', notaNormalizada);
+                                        actualizarArmadura();
+                                        return;
+                                    }
+
+                                    const siguienteIndice = (indiceActual + 1) % 12;
+                                    const siguienteNota = NOTAS_CROMATICAS[siguienteIndice];
+                                    
+                                    nota.nota = siguienteNota.nota;
+                                    nota.alteracion = siguienteNota.alteracion;
+                                    
+                                    if (siguienteIndice === 0) {
+                                        nota.octava = Math.min(8, nota.octava + 1);
+                                    }
+                                }
+                                break;
+
+                            case 'ArrowDown':
+                                const notaDown = armadura[notaArmaduraSeleccionada];
+                                if (e.shiftKey) {
+                                    notaDown.octava = Math.max(0, notaDown.octava - 1);
+                                } else {
+                                    const indiceActual = encontrarIndiceCromatico(notaDown.nota, notaDown.alteracion, true);
+                                    console.log('Bajando nota:', {
+                                        notaActual: notaDown.nota,
+                                        alteracionActual: notaDown.alteracion,
+                                        indiceActual: indiceActual
+                                    });
+
+                                    if (indiceActual === -1) {
+                                        // Intentar normalizar la nota si no se encuentra
+                                        const notaNormalizada = normalizarAlteracion(notaDown.nota, notaDown.alteracion);
+                                        notaDown.nota = notaNormalizada.nota;
+                                        notaDown.alteracion = notaNormalizada.alteracion;
+                                        console.log('Nota normalizada:', notaNormalizada);
+                                        actualizarArmadura();
+                                        return;
+                                    }
+
+                                    const siguienteIndice = (indiceActual - 1 + 12) % 12;
+                                    const siguienteNota = NOTAS_CROMATICAS_BEMOL[siguienteIndice];
+                                    
+                                    if (!siguienteNota) {
+                                        console.error('No se encontró la siguiente nota para índice:', siguienteIndice);
+                                        return;
+                                    }
+
+                                    notaDown.nota = siguienteNota.nota;
+                                    notaDown.alteracion = siguienteNota.alteracion;
+                                    
+                                    if (siguienteIndice === 11) {
+                                        notaDown.octava = Math.max(0, notaDown.octava - 1);
+                                    }
+                                }
+                                break;
+                        }
+                        
+                        actualizarArmadura();
+                    } catch (error) {
+                        console.error('Error en manejarTeclado:', error, {
+                            notaSeleccionada: notaArmaduraSeleccionada,
+                            armadura: armadura
+                        });
+                    }
+                    return;
+                }
+
+                // Resto del código existente de manejarTeclado
+                if (!compasSeleccionado) return;
+
+                try {
+                    const compasContent = compasSeleccionado.querySelector('.compas-content');
+
+                    switch (e.key) {
+                        case 'ArrowLeft':
+                            if (notaSeleccionada > 0) {
+                                notaSeleccionada--;
+                                redibujarCompas();
+                            }
+                            break;
+
+                        case 'ArrowRight':
+                            if (notaSeleccionada < notasCompasActual.length - 1) {
+                                notaSeleccionada++;
+                                redibujarCompas();
+                            }
+                            break;
+
+                        case 'ArrowUp':
+                            if (notaSeleccionada !== null) {
+                                const nota = notasCompasActual[notaSeleccionada];
+                                const [pitch, octave] = nota.pitch.split('/');
+                                const currentIndex = NOTAS_ORDEN.indexOf(pitch);
+
+                                if (currentIndex !== -1) {
+                                    let newIndex = currentIndex + 1;
+                                    let newOctave = parseInt(octave);
+
+                                    // Si llegamos al final del array, pasamos a la siguiente octava
+                                    if (newIndex >= NOTAS_ORDEN.length) {
+                                        newIndex = 0;
+                                        newOctave++;
+                                    }
+
+                                    nota.pitch = `${NOTAS_ORDEN[newIndex]}/${newOctave}`;
+                                    redibujarCompas();
+                                }
+                            }
+                            break;
+
+                        case 'ArrowDown':
+                            if (notaSeleccionada !== null) {
+                                const nota = notasCompasActual[notaSeleccionada];
+                                const [pitch, octave] = nota.pitch.split('/');
+                                const currentIndex = NOTAS_ORDEN.indexOf(pitch);
+
+                                if (currentIndex !== -1) {
+                                    let newIndex = currentIndex - 1;
+                                    let newOctave = parseInt(octave);
+
+                                    // Si llegamos al inicio del array, pasamos a la octava anterior
+                                    if (newIndex < 0) {
+                                        newIndex = NOTAS_ORDEN.length - 1;
+                                        newOctave--;
+                                    }
+
+                                    nota.pitch = `${NOTAS_ORDEN[newIndex]}/${newOctave}`;
+                                    redibujarCompas();
+                                }
+                            }
+                            break;
+
+                        default:
+                            // Cambiar duración con números
+                            if (DURACIONES[e.key]) {
+                                if (notaSeleccionada !== null) {
+                                    notasCompasActual[notaSeleccionada].duration = DURACIONES[e.key];
+                                    redibujarCompas();
+                                }
+                            }
+
+                            // Cambiar nota con letras
+                            if (NOTAS_MAP[e.key.toLowerCase()]) {
+                                if (notaSeleccionada !== null) {
+                                    const octave = notasCompasActual[notaSeleccionada].pitch.split('/')[1];
+                                    notasCompasActual[notaSeleccionada].pitch = `${NOTAS_MAP[e.key.toLowerCase()]}/${octave}`;
+                                    redibujarCompas();
+                                }
+                            }
+                            break;
+                    }
+                } catch (error) {
+                    console.error('Error en manejarTeclado:', error);
+                }
+            }
+
+
+
+            function inicializarEventosTeclado() {
+                document.addEventListener('keydown', manejarTeclado);
+
+                // Remover la selección al hacer clic fuera de un compás
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.compas')) {
+                        deseleccionarTodo();
+                    }
+                });
+            }
+
+            // Inicializar cuando el DOM esté listo
+            document.addEventListener('DOMContentLoaded', () => {
+                try {
+                    inicializarEventosTeclado();
+                } catch (error) {
+                    console.error('Error en inicialización:', error);
+                }
+            });
+
+            // También necesitamos modificar redibujarCompas para manejar la promesa
+            async function redibujarCompas() {
+                try {
+                    if (!compasSeleccionado) return;
+
+                    const compasContent = compasSeleccionado.querySelector('.compas-content');
+                    if (!compasContent) return;
+
+                    const staveNotes = await crearPentagramaVexFlow(compasContent, notasCompasActual);
+
+                    // Resaltar nota seleccionada
+                    if (notaSeleccionada !== null && staveNotes[notaSeleccionada]) {
+                        staveNotes[notaSeleccionada].setStyle({ fillStyle: 'blue' });
+                    }
+                } catch (error) {
+                    console.error('Error en redibujarCompas:', error);
+                }
+            }
+
+            function agregarCompas() {
+                contadorCompases++;
+                const imagenId = `imagen-${Date.now()}`;
+
+                const partitura = document.getElementById('partitura');
+                const nuevoCompas = document.createElement('div');
+                nuevoCompas.className = 'compas';
+                nuevoCompas.setAttribute('data-imagen-id', imagenId);
+
+                nuevoCompas.onclick = function () {
+                    seleccionarCompas(nuevoCompas);
+                };
+
+                nuevoCompas.ondblclick = function () {
+                    mostrarNotasCompas(nuevoCompas);
+                };
+
+                const eliminarCompasBtn = document.createElement('div');
+                eliminarCompasBtn.className = 'eliminar-compas';
+                eliminarCompasBtn.textContent = '×';
+                eliminarCompasBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    const contenedorImagen = document.querySelector(`[data-imagen-id="${imagenId}"]`);
+                    if (contenedorImagen) {
+                        contenedorImagen.remove();
+                    }
+                    partitura.removeChild(nuevoCompas);
+                    actualizarNumerosCompases();
+                };
+
+                const numeroCompas = document.createElement('div');
+                numeroCompas.className = 'numero-compas';
+                numeroCompas.textContent = contadorCompases;
+
+                const nombreCompas = document.createElement('div');
+                nombreCompas.className = 'nombre-compas';
+                nombreCompas.textContent = 'Sin título';
+                nombreCompas.onclick = function (e) {
+                    e.stopPropagation();
+                    const input = document.createElement('input');
+                    input.className = 'nombre-compas-input';
+                    input.value = nombreCompas.textContent;
+                    input.onblur = function () {
+                        nombreCompas.textContent = input.value || 'Sin título';
+                        nuevoCompas.replaceChild(nombreCompas, input);
+                        actualizarJSON();
+                    };
+                    nuevoCompas.replaceChild(input, nombreCompas);
+                    input.focus();
+                };
+
+                // Contenedor para VexFlow
+                const compasContent = document.createElement('div');
+                compasContent.className = 'compas-content';
+
+                nuevoCompas.appendChild(eliminarCompasBtn);
+                nuevoCompas.appendChild(numeroCompas);
+                nuevoCompas.appendChild(nombreCompas);
+                nuevoCompas.appendChild(compasContent);
+                partitura.appendChild(nuevoCompas);
+
+                // Crear pentagrama con VexFlow
+                crearPentagramaVexFlow(compasContent);
+
+                // Agregar el contenedor de imagen
+                const imagenesScroll = document.getElementById('imagenes-scroll');
+                const contenedorImagen = crearContenedorImagen(contadorCompases);
+                contenedorImagen.setAttribute('data-imagen-id', imagenId);
+                imagenesScroll.appendChild(contenedorImagen);
+
+                actualizarJSON();
+            }
+
+            // Agregar esto justo después de la declaración de variables al inicio del script
+            function crearContenedorImagen(numeroCompas) {
+                const contenedor = document.createElement('div');
+                contenedor.className = 'imagen-compas';
+
+                const uploadDiv = document.createElement('div');
+                uploadDiv.className = 'imagen-upload';
+                uploadDiv.textContent = `Subir imagen para compás ${numeroCompas}`;
+
+                const inputFile = document.createElement('input');
+                inputFile.type = 'file';
+                inputFile.accept = 'image/*';
+                inputFile.style.display = 'none';
+
+                uploadDiv.onclick = () => inputFile.click();
+
+                inputFile.onchange = function (e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function (e) {
+                            const img = document.createElement('img');
+                            img.src = e.target.result;
+                            img.style.maxWidth = '100%';
+                            contenedor.replaceChild(img, uploadDiv);
+                            actualizarJSON();
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+
+                contenedor.appendChild(uploadDiv);
+                contenedor.appendChild(inputFile);
+                return contenedor;
+            }
+
+            function actualizarNumerosCompases() {
+                const compases = document.querySelectorAll('.compas');
+                compases.forEach((compas, index) => {
+                    compas.querySelector('.numero-compas').textContent = index + 1;
+                });
+                contadorCompases = compases.length;
+                actualizarJSON();
+            }
+
+            function eliminarCompas() {
+                const partitura = document.getElementById('partitura');
+                if (partitura.lastElementChild) {
+                    const imagenId = partitura.lastElementChild.getAttribute('data-imagen-id');
+                    const contenedorImagen = document.querySelector(`[data-imagen-id="${imagenId}"]`);
+                    if (contenedorImagen) {
+                        contenedorImagen.remove();
+                    }
+                    partitura.removeChild(partitura.lastElementChild);
+                    actualizarNumerosCompases();
+                }
+            }
+
+            function actualizarJSON() {
+                const compases = document.querySelectorAll('.compas');
+                const datos = Array.from(compases).map((compas, index) => {
+                    const nombreCompas = compas.querySelector('.nombre-compas').textContent;
+                    const imagenId = compas.getAttribute('data-imagen-id');
+                    const contenedorImagen = document.querySelector(`.imagen-compas[data-imagen-id="${imagenId}"]`);
+                    const tieneImagen = contenedorImagen && contenedorImagen.querySelector('img') !== null;
+
+                    return {
+                        numero: index + 1,
+                        nombre: nombreCompas,
+                        tieneImagen: tieneImagen
+                    };
+                });
+
+                const jsonOutput = document.getElementById('json-output');
+                jsonOutput.textContent = JSON.stringify(datos, null, 2);
+            }
+
+            function seleccionarCompas(compas) {
+                try {
+                    // Remover selección previa
+                    const compasesSeleccionados = document.querySelectorAll('.compas.seleccionado');
+                    compasesSeleccionados.forEach(c => c.classList.remove('seleccionado'));
+
+                    const imagenesSeleccionadas = document.querySelectorAll('.imagen-compas.seleccionado');
+                    imagenesSeleccionadas.forEach(i => i.classList.remove('seleccionado'));
+
+                    // Agregar nueva selección
+                    compas.classList.add('seleccionado');
+                    compasSeleccionado = compas;
+
+                    // Seleccionar imagen correspondiente
+                    const imagenId = compas.getAttribute('data-imagen-id');
+                    const imagenCorrespondiente = document.querySelector(`.imagen-compas[data-imagen-id="${imagenId}"]`);
+                    if (imagenCorrespondiente) {
+                        imagenCorrespondiente.classList.add('seleccionado');
+                        // Hacer scroll a la imagen seleccionada de manera segura
+                        setTimeout(() => {
+                            imagenCorrespondiente.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }, 0);
+                    }
+
+                    // Inicializar selección de nota
+                    notaSeleccionada = 0;
+
+                    // Obtener las notas existentes del compás o crear nuevas
+                    const compasContent = compas.querySelector('.compas-content');
+                    if (compasContent) {
+                        // Si el compás ya tiene notas, las mantenemos
+                        if (!notasCompasActual || notasCompasActual.length === 0) {
+                            notasCompasActual = [
+                                { pitch: 'c/4', duration: 'q' },
+                                { pitch: 'd/4', duration: 'q' },
+                                { pitch: 'e/4', duration: 'q' },
+                                { pitch: 'f/4', duration: 'q' }
+                            ];
+                        }
+                        // Usar setTimeout para asegurar que el DOM esté listo
+                        setTimeout(() => {
+                            redibujarCompas();
+                        }, 0);
+                    }
+                } catch (error) {
+                    console.error('Error en seleccionarCompas:', error);
+                }
+            }
+
+            function deseleccionarTodo() {
+                const compasesSeleccionados = document.querySelectorAll('.compas.seleccionado');
+                compasesSeleccionados.forEach(c => c.classList.remove('seleccionado'));
+
+                const imagenesSeleccionadas = document.querySelectorAll('.imagen-compas.seleccionado');
+                imagenesSeleccionadas.forEach(i => i.classList.remove('seleccionado'));
+
+                compasSeleccionado = null;
+                notaArmaduraSeleccionada = null;
+                scrollEnabled = true;
+                actualizarArmadura();
+            }
+
+
+            function mostrarNotasCompas(compas) {
+                // Crear overlay
+                const overlay = document.createElement('div');
+                overlay.className = 'overlay';
+                document.body.appendChild(overlay);
+
+                // Crear popup
+                const popup = document.createElement('div');
+                popup.className = 'popup-notas';
+
+                // Obtener las notas del compás
+                const numeroCompas = compas.querySelector('.numero-compas').textContent;
+                const notasJSON = JSON.stringify(notasCompasActual, null, 2);
+
+                // Crear contenido
+                popup.innerHTML = `
+        <h3>Notas del Compás ${numeroCompas}</h3>
+        <pre>${notasJSON}</pre>
+        <button onclick="cerrarPopup()">Cerrar</button>
+        <button onclick="aplicarCambiosNotas(this)">Aplicar Cambios</button>
+        <textarea style="width: 100%; height: 200px; margin-top: 10px;">${notasJSON}</textarea>
+    `;
+
+                document.body.appendChild(popup);
+            }
+
+            function cerrarPopup() {
+                const overlay = document.querySelector('.overlay');
+                const popup = document.querySelector('.popup-notas');
+                if (overlay) overlay.remove();
+                if (popup) popup.remove();
+            }
+
+            function aplicarCambiosNotas(button) {
+                try {
+                    const textarea = button.parentElement.querySelector('textarea');
+                    const nuevasNotas = JSON.parse(textarea.value);
+                    notasCompasActual = nuevasNotas;
+                    redibujarCompas();
+                    cerrarPopup();
+                } catch (error) {
+                    alert('Error en el formato JSON: ' + error.message);
+                }
+            }
+
+            // Agregar al final del script
+            document.addEventListener('DOMContentLoaded', () => {
+                inicializarEventosTeclado();
+            });
+
+
+            document.addEventListener('DOMContentLoaded', () => {
+                crearPentagramaArmadura();
+            });
+
+            // Asegurarse de que agregarNotaArmadura esté definida
+            function agregarNotaArmadura() {
+                if (armadura.length < 12) {
+                    armadura.push({
+                        nota: 'C',
+                        alteracion: 'natural',
+                        octava: 4
+                    });
+                    actualizarArmadura();
+                }
+            }
+
+            function eliminarNotaArmadura() {
+                if (armadura.length > 0) {
+                    armadura.pop();
+                    notaArmaduraSeleccionada = null;
+                    actualizarArmadura();
+                }
+            }
+
+            async function actualizarArmadura() {
+                try {
+                    verificarEstadoArmadura();
+                    await crearPentagramaArmadura();
+                    const jsonDisplay = document.getElementById('armadura-json');
+                    jsonDisplay.textContent = JSON.stringify(armadura, null, 2);
+                } catch (error) {
+                    console.error('Error en actualizarArmadura:', error);
+                }
+            }
+
+            function seleccionarNotaArmadura(index) {
+                notaArmaduraSeleccionada = index;
+                scrollEnabled = false;
+                actualizarArmadura();
+            }
+
+            // Función auxiliar para verificar el estado de la armadura
+            function verificarEstadoArmadura() {
+                console.log('Estado actual de la armadura:', {
+                    armadura: armadura,
+                    notaSeleccionada: notaArmaduraSeleccionada,
+                    totalNotas: armadura.length
+                });
+                
+                // Verificar cada nota de la armadura
+                armadura.forEach((nota, index) => {
+                    if (!nota || !nota.nota || !nota.alteracion || nota.octava === undefined) {
+                        console.error(`Nota inválida en índice ${index}:`, nota);
+                    }
+                });
+            }
+
+            // Añadir al inicio del archivo con las otras variables globales
+            let audioContext = null;
+            let isPlaying = false;
+            let currentNoteIndex = 0;
+            let playbackInterval = null;
+
+            // Función para inicializar el contexto de audio
+            function initAudioContext() {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            // Función para convertir nota y octava a frecuencia
+            function noteToFrequency(note, octave) {
+                const notes = {'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 
+                               'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11};
+                
+                let noteStr = note.toUpperCase();
+                let offset = 0;
+                
+                if (noteStr.includes('#')) {
+                    offset = 1;
+                    noteStr = noteStr[0];
+                } else if (noteStr.includes('B')) {
+                    offset = -1;
+                    noteStr = noteStr[0];
+                }
+                
+                const semitone = notes[noteStr] + offset;
+                const frequency = 440 * Math.pow(2, (semitone - 9) / 12 + (octave - 4));
+                return frequency;
+            }
+
+            // Función para reproducir una nota
+            function playNote(nota, duration = 0.5) {
+                initAudioContext();
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Convertir la nota a frecuencia
+                let noteName = nota.nota;
+                if (nota.alteracion === 'sharp') noteName += '#';
+                if (nota.alteracion === 'flat') noteName += 'b';
+                const freq = noteToFrequency(noteName, nota.octava);
+                
+                oscillator.frequency.value = freq;
+                
+                // Configurar envelope
+                const now = audioContext.currentTime;
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.5, now + 0.1);
+                gainNode.gain.linearRampToValueAtTime(0, now + duration);
+                
+                oscillator.start(now);
+                oscillator.stop(now + duration);
+            }
+
+            // Función para reproducir la secuencia de notas
+            function playArmadura() {
+                if (armadura.length === 0) return;
+                
+                currentNoteIndex = 0;
+                playbackInterval = setInterval(() => {
+                    if (currentNoteIndex >= armadura.length) {
+                        currentNoteIndex = 0;
+                        if (!document.getElementById('playArmaduraBtn').classList.contains('loop')) {
+                            stopPlayback();
+                            return;
+                        }
+                    }
+                    
+                    playNote(armadura[currentNoteIndex]);
+                    
+                    // Resaltar la nota actual
+                    const noteheads = document.querySelectorAll('.vf-notehead');
+                    noteheads.forEach(nh => nh.style.fill = 'black');
+                    if (noteheads[currentNoteIndex]) {
+                        noteheads[currentNoteIndex].style.fill = '#007bff';
+                    }
+                    
+                    currentNoteIndex++;
+                }, 500); // Intervalo de 500ms entre notas
+            }
+
+            function stopPlayback() {
+                clearInterval(playbackInterval);
+                isPlaying = false;
+                const btn = document.getElementById('playArmaduraBtn');
+                btn.innerHTML = '<span class="play-icon">▶</span> Play';
+                btn.classList.remove('playing');
+                
+                // Restaurar colores de las notas
+                const noteheads = document.querySelectorAll('.vf-notehead');
+                noteheads.forEach((nh, i) => {
+                    nh.style.fill = i === notaArmaduraSeleccionada ? '#007bff' : 'black';
+                });
+            }
+
+            function togglePlayArmadura() {
+                initAudioContext();
+                const btn = document.getElementById('playArmaduraBtn');
+                
+                if (!isPlaying) {
+                    isPlaying = true;
+                    btn.innerHTML = '<span class="play-icon">⏹</span> Stop';
+                    btn.classList.add('playing');
+                    playArmadura();
+                } else {
+                    stopPlayback();
+                }
+            }
+
+            // Asegurarse de detener la reproducción cuando se modifica la armadura
+            function actualizarArmadura() {
+                stopPlayback();
+                crearPentagramaArmadura();
+                const jsonDisplay = document.getElementById('armadura-json');
+                jsonDisplay.textContent = JSON.stringify(armadura, null, 2);
+            }
+
+            // Añadir al inicio del archivo con las otras constantes
+            const NOTAS_CROMATICAS = [
+                { nota: 'C', alteracion: 'natural' },
+                { nota: 'C', alteracion: 'sharp' },
+                { nota: 'D', alteracion: 'natural' },
+                { nota: 'D', alteracion: 'sharp' },
+                { nota: 'E', alteracion: 'natural' },
+                { nota: 'F', alteracion: 'natural' },
+                { nota: 'F', alteracion: 'sharp' },
+                { nota: 'G', alteracion: 'natural' },
+                { nota: 'G', alteracion: 'sharp' },
+                { nota: 'A', alteracion: 'natural' },
+                { nota: 'A', alteracion: 'sharp' },
+                { nota: 'B', alteracion: 'natural' }
+            ];
+
+            const NOTAS_CROMATICAS_BEMOL = [
+                { nota: 'C', alteracion: 'natural' },
+                { nota: 'D', alteracion: 'flat' },
+                { nota: 'D', alteracion: 'natural' },
+                { nota: 'E', alteracion: 'flat' },
+                { nota: 'E', alteracion: 'natural' },
+                { nota: 'F', alteracion: 'natural' },
+                { nota: 'G', alteracion: 'flat' },
+                { nota: 'G', alteracion: 'natural' },
+                { nota: 'A', alteracion: 'flat' },
+                { nota: 'A', alteracion: 'natural' },
+                { nota: 'B', alteracion: 'flat' },
+                { nota: 'B', alteracion: 'natural' }
+            ];
+
+            function encontrarIndiceCromatico(nota, alteracion, usarBemoles = false) {
+                const escala = usarBemoles ? NOTAS_CROMATICAS_BEMOL : NOTAS_CROMATICAS;
+                
+                // Normalizar la entrada
+                nota = nota.toUpperCase();
+                alteracion = alteracion.toLowerCase();
+                
+                // Buscar el índice
+                const indice = escala.findIndex(n => 
+                    n.nota.toUpperCase() === nota && 
+                    n.alteracion.toLowerCase() === alteracion
+                );
+                
+                console.log('Buscando nota:', {
+                    notaBuscada: nota,
+                    alteracionBuscada: alteracion,
+                    escalaUsada: usarBemoles ? 'bemoles' : 'sostenidos',
+                    indiceEncontrado: indice,
+                    escalCompleta: escala
+                });
+                
+                return indice;
+            }
+
+            // Función auxiliar para convertir entre alteraciones equivalentes
+            function normalizarAlteracion(nota, alteracion) {
+                // Mapeo de equivalencias enarmónicas
+                const equivalencias = {
+                    'C#': { nota: 'D', alteracion: 'flat' },
+                    'D#': { nota: 'E', alteracion: 'flat' },
+                    'F#': { nota: 'G', alteracion: 'flat' },
+                    'G#': { nota: 'A', alteracion: 'flat' },
+                    'A#': { nota: 'B', alteracion: 'flat' },
+                    'Db': { nota: 'C', alteracion: 'sharp' },
+                    'Eb': { nota: 'D', alteracion: 'sharp' },
+                    'Gb': { nota: 'F', alteracion: 'sharp' },
+                    'Ab': { nota: 'G', alteracion: 'sharp' },
+                    'Bb': { nota: 'A', alteracion: 'sharp' }
+                };
+
+                const key = `${nota}${alteracion === 'sharp' ? '#' : alteracion === 'flat' ? 'b' : ''}`;
+                return equivalencias[key] || { nota, alteracion };
+            }
+
+            // Añadir también un manejador para la rueda del mouse
+            document.addEventListener('wheel', function(e) {
+                if (!scrollEnabled && notaArmaduraSeleccionada !== null) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            // Función para manejar el clic en el documento
+            document.addEventListener('click', function(e) {
+                // Comprobar si el clic fue dentro de la armadura
+                const armaduraContainer = document.querySelector('.armadura-container');
+                if (armaduraContainer && !armaduraContainer.contains(e.target)) {
+                    // Clic fuera de la armadura
+                    notaArmaduraSeleccionada = null;
+                    scrollEnabled = true;
+                    actualizarArmadura();
+                }
+            });
+        </script>
+</body>
+
+</html>
