@@ -614,6 +614,45 @@
             }
 
             function manejarTeclado(e) {
+                if (e.key === 'Enter') {
+                    console.log('Enter presionado - Iniciando reproducción');
+                    initAudioContext().then(() => {
+                        stopPlayback(); // Detener cualquier reproducción previa
+                        isPlaying = true;
+                        const btn = document.getElementById('playArmaduraBtn');
+                        if (btn) {
+                            btn.innerHTML = '<span class="play-icon">⏹</span> Stop';
+                            btn.classList.add('playing');
+                        }
+                        playArmadura();
+                    });
+                    return;
+                }
+
+                // Agregar nota con barra espaciadora
+                if (e.code === 'Space') {
+                    e.preventDefault(); // Prevenir el scroll de la página
+                    console.log('Espacio presionado - Agregando nota');
+                    agregarNotaArmadura();
+                    return;
+                }
+
+                // Borrar nota seleccionada con Delete
+                if (e.key === 'Delete' || e.key === 'Backspace') {
+                    e.preventDefault();
+                    console.log('Delete presionado - Borrando nota seleccionada');
+                    if (notaArmaduraSeleccionada !== null) {
+                        // Eliminar la nota específica
+                        armadura.splice(notaArmaduraSeleccionada, 1);
+                        // Si la nota eliminada era la última, seleccionar la nueva última
+                        if (notaArmaduraSeleccionada >= armadura.length) {
+                            notaArmaduraSeleccionada = armadura.length > 0 ? armadura.length - 1 : null;
+                        }
+                        actualizarArmadura();
+                    }
+                    return;
+                }
+
                 if (notaArmaduraSeleccionada !== null) {
                     // Prevenir el scroll con las flechas solo cuando el scroll está deshabilitado
                     if (!scrollEnabled && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
@@ -1129,6 +1168,7 @@
                 }
             }
 
+            // También actualizamos eliminarNotaArmadura para mantener la consistencia
             function eliminarNotaArmadura() {
                 if (armadura.length > 0) {
                     armadura.pop();
@@ -1170,7 +1210,7 @@
                 });
             }
 
-            // Añadir al inicio del archivo con las otras variables globales
+            // Variables globales para el audio
             let audioContext = null;
             let isPlaying = false;
             let currentNoteIndex = 0;
@@ -1178,90 +1218,165 @@
 
             // Función para inicializar el contexto de audio
             function initAudioContext() {
-                if (!audioContext) {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                }
-            }
-
-            // Función para convertir nota y octava a frecuencia
-            function noteToFrequency(note, octave) {
-                const notes = {'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 
-                               'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11};
-                
-                let noteStr = note.toUpperCase();
-                let offset = 0;
-                
-                if (noteStr.includes('#')) {
-                    offset = 1;
-                    noteStr = noteStr[0];
-                } else if (noteStr.includes('B')) {
-                    offset = -1;
-                    noteStr = noteStr[0];
-                }
-                
-                const semitone = notes[noteStr] + offset;
-                const frequency = 440 * Math.pow(2, (semitone - 9) / 12 + (octave - 4));
-                return frequency;
-            }
-
-            // Función para reproducir una nota
-            function playNote(nota, duration = 0.5) {
-                initAudioContext();
-                
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                // Convertir la nota a frecuencia
-                let noteName = nota.nota;
-                if (nota.alteracion === 'sharp') noteName += '#';
-                if (nota.alteracion === 'flat') noteName += 'b';
-                const freq = noteToFrequency(noteName, nota.octava);
-                
-                oscillator.frequency.value = freq;
-                
-                // Configurar envelope
-                const now = audioContext.currentTime;
-                gainNode.gain.setValueAtTime(0, now);
-                gainNode.gain.linearRampToValueAtTime(0.5, now + 0.1);
-                gainNode.gain.linearRampToValueAtTime(0, now + duration);
-                
-                oscillator.start(now);
-                oscillator.stop(now + duration);
-            }
-
-            // Función para reproducir la secuencia de notas
-            function playArmadura() {
-                if (armadura.length === 0) return;
-                
-                currentNoteIndex = 0;
-                playbackInterval = setInterval(() => {
-                    if (currentNoteIndex >= armadura.length) {
-                        currentNoteIndex = 0;
-                        if (!document.getElementById('playArmaduraBtn').classList.contains('loop')) {
-                            stopPlayback();
-                            return;
+                return new Promise((resolve, reject) => {
+                    try {
+                        if (!audioContext) {
+                            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                            console.log('Nuevo AudioContext creado:', audioContext.state);
                         }
+
+                        if (audioContext.state === 'suspended') {
+                            audioContext.resume().then(() => {
+                                console.log('AudioContext resumido:', audioContext.state);
+                                resolve(audioContext);
+                            });
+                        } else {
+                            console.log('AudioContext ya activo:', audioContext.state);
+                            resolve(audioContext);
+                        }
+                    } catch (error) {
+                        console.error('Error en initAudioContext:', error);
+                        reject(error);
                     }
-                    
-                    playNote(armadura[currentNoteIndex]);
-                    
-                    // Resaltar la nota actual
-                    const noteheads = document.querySelectorAll('.vf-notehead');
-                    noteheads.forEach(nh => nh.style.fill = 'black');
-                    if (noteheads[currentNoteIndex]) {
-                        noteheads[currentNoteIndex].style.fill = '#007bff';
-                    }
-                    
-                    currentNoteIndex++;
-                }, 500); // Intervalo de 500ms entre notas
+                });
             }
 
+            // Función mejorada para convertir nota a frecuencia
+            function noteToFrequency(note, octave) {
+                const A4 = 440;
+                const notes = {
+                    'C': -9, 'C#': -8, 'Db': -8,
+                    'D': -7, 'D#': -6, 'Eb': -6,
+                    'E': -5,
+                    'F': -4, 'F#': -3, 'Gb': -3,
+                    'G': -2, 'G#': -1, 'Ab': -1,
+                    'A': 0, 'A#': 1, 'Bb': 1,
+                    'B': 2
+                };
+
+                let noteStr = note.toUpperCase();
+                let semitonesFromA4 = notes[noteStr];
+                
+                if (semitonesFromA4 === undefined) {
+                    console.error('Nota no reconocida:', noteStr);
+                    return 440; // Frecuencia por defecto
+                }
+
+                semitonesFromA4 += (octave - 4) * 12;
+                return A4 * Math.pow(2, semitonesFromA4 / 12);
+            }
+
+            // Función mejorada para reproducir una nota
+            function playNote(nota, duration = 0.5) {
+                console.log('Intentando reproducir nota:', nota);
+                
+                try {
+                    if (!audioContext || audioContext.state !== 'running') {
+                        console.error('AudioContext no está listo');
+                        return false;
+                    }
+
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    let noteName = nota.nota;
+                    if (nota.alteracion === 'sharp') noteName += '#';
+                    if (nota.alteracion === 'flat') noteName += 'b';
+                    
+                    const freq = noteToFrequency(noteName, nota.octava);
+                    console.log('Configuración de nota:', {
+                        noteName: noteName,
+                        frecuencia: freq,
+                        octava: nota.octava
+                    });
+                    
+                    oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+                    
+                    const now = audioContext.currentTime;
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.05);
+                    gainNode.gain.linearRampToValueAtTime(0.3, now + 0.1);
+                    gainNode.gain.linearRampToValueAtTime(0.3, now + duration - 0.05);
+                    gainNode.gain.linearRampToValueAtTime(0, now + duration);
+                    
+                    oscillator.start(now);
+                    oscillator.stop(now + duration);
+                    
+                    return true;
+                } catch (error) {
+                    console.error('Error en playNote:', error);
+                    return false;
+                }
+            }
+
+            // Función mejorada para reproducir la secuencia
+            function playArmadura() {
+                console.log('Iniciando playArmadura');
+                console.log('Estado actual:', {
+                    armadura: armadura,
+                    isPlaying: isPlaying,
+                    audioContext: audioContext?.state
+                });
+
+                if (armadura.length === 0) {
+                    console.log('No hay notas en la armadura');
+                    return;
+                }
+                
+                if (!audioContext || audioContext.state !== 'running') {
+                    console.log('Reinicializando contexto de audio');
+                    initAudioContext().then(() => {
+                        console.log('Contexto de audio inicializado, comenzando reproducción');
+                        startPlayback();
+                    });
+                } else {
+                    startPlayback();
+                }
+            }
+
+            function startPlayback() {
+                console.log('Iniciando startPlayback');
+                currentNoteIndex = 0;
+                
+                function playNextNote() {
+                    console.log('Reproduciendo nota:', currentNoteIndex);
+                    if (currentNoteIndex < armadura.length && isPlaying) {
+                        const currentNote = armadura[currentNoteIndex];
+                        console.log('Nota actual:', currentNote);
+                        
+                        const success = playNote(currentNote);
+                        if (success) {
+                            // Resaltar nota actual
+                            const noteheads = document.querySelectorAll('.vf-notehead');
+                            noteheads.forEach(nh => nh.style.fill = 'black');
+                            if (noteheads[currentNoteIndex]) {
+                                noteheads[currentNoteIndex].style.fill = '#007bff';
+                            }
+                            
+                            currentNoteIndex++;
+                            setTimeout(playNextNote, 500);
+                        } else {
+                            console.error('Error al reproducir nota');
+                            stopPlayback();
+                        }
+                    } else {
+                        console.log('Finalizando reproducción');
+                        stopPlayback();
+                    }
+                }
+                
+                playNextNote();
+            }
+
+            // Función mejorada para detener la reproducción
             function stopPlayback() {
-                clearInterval(playbackInterval);
+                console.log('Deteniendo reproducción');
                 isPlaying = false;
+                clearTimeout(playbackInterval);
+                
                 const btn = document.getElementById('playArmaduraBtn');
                 btn.innerHTML = '<span class="play-icon">▶</span> Play';
                 btn.classList.remove('playing');
@@ -1273,12 +1388,12 @@
                 });
             }
 
+            // Función mejorada para alternar reproducción
             function togglePlayArmadura() {
-                initAudioContext();
-                const btn = document.getElementById('playArmaduraBtn');
-                
                 if (!isPlaying) {
+                    initAudioContext();
                     isPlaying = true;
+                    const btn = document.getElementById('playArmaduraBtn');
                     btn.innerHTML = '<span class="play-icon">⏹</span> Stop';
                     btn.classList.add('playing');
                     playArmadura();
@@ -1388,6 +1503,22 @@
                     actualizarArmadura();
                 }
             });
+
+            function toggleJson(elementId) {
+                const jsonElement = document.getElementById(elementId);
+                const toggleButton = jsonElement.previousElementSibling;
+                
+                jsonElement.classList.toggle('collapsed');
+                toggleButton.classList.toggle('active');
+                
+                // Update button text
+                const toggleIcon = toggleButton.querySelector('.toggle-icon');
+                if (jsonElement.classList.contains('collapsed')) {
+                    toggleButton.innerHTML = `<span class="toggle-icon">▶</span> Mostrar JSON`;
+                } else {
+                    toggleButton.innerHTML = `<span class="toggle-icon">▶</span> Ocultar JSON`;
+                }
+            }
         </script>
 </body>
 
