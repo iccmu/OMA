@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Editor de Armadura</title>
+    <style>
+        .container {
+            padding: 20px;
+        }
+
+        .armadura-container {
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-width: 500px;
+        }
+
+        .armadura-content {
+            height: 120px;
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            background: white;
+        }
+
+        .armadura-controls {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 5px 15px;
+            cursor: pointer;
+        }
+
+        .play-icon {
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+
+        #playArmaduraBtn.playing {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .armadura-json {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+
+        .vf-notehead {
+            transition: fill 0.2s ease;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/vexflow/build/cjs/vexflow.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="armadura-container">
+            <h4>Armadura</h4>
+            <div class="armadura-content" id="armadura-content">
+                <!-- Aquí irá el pentagrama de VexFlow -->
+            </div>
+            <div class="armadura-controls">
+                <button onclick="agregarNotaArmadura()">Añadir nota</button>
+                <button onclick="eliminarNotaArmadura()">Eliminar nota</button>
+                <button id="playArmaduraBtn" onclick="togglePlayArmadura()">
+                    <span class="play-icon">▶</span> Play
+                </button>
+            </div>
+            <div class="armadura-json-container">
+                <div id="armadura-json" class="armadura-json"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const VF = Vex.Flow;
+        let armadura = [];
+        let notaArmaduraSeleccionada = null;
+        let audioContext = null;
+        let isPlaying = false;
+
+        // Constantes para las notas
+        const NOTAS_CROMATICAS = [
+            { nota: 'C', alteracion: 'natural' },
+            { nota: 'C', alteracion: 'sharp' },
+            { nota: 'D', alteracion: 'natural' },
+            { nota: 'D', alteracion: 'sharp' },
+            { nota: 'E', alteracion: 'natural' },
+            { nota: 'F', alteracion: 'natural' },
+            { nota: 'F', alteracion: 'sharp' },
+            { nota: 'G', alteracion: 'natural' },
+            { nota: 'G', alteracion: 'sharp' },
+            { nota: 'A', alteracion: 'natural' },
+            { nota: 'A', alteracion: 'sharp' },
+            { nota: 'B', alteracion: 'natural' }
+        ];
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            crearPentagramaArmadura();
+            inicializarEventosTeclado();
+        });
+
+        // Funciones principales
+        function crearPentagramaArmadura() {
+            const contenedor = document.getElementById('armadura-content');
+            contenedor.innerHTML = '';
+
+            const renderer = new VF.Renderer(contenedor, VF.Renderer.Backends.SVG);
+            renderer.resize(500, 120);
+            const context = renderer.getContext();
+
+            const stave = new VF.Stave(10, 20, 480);
+            stave.addClef('treble');
+            stave.setContext(context).draw();
+
+            if (armadura.length > 0) {
+                const staveNotes = armadura.map(nota => {
+                    let pitch = nota.nota.toLowerCase();
+                    if (nota.alteracion === 'sharp') pitch += '#';
+                    if (nota.alteracion === 'flat') pitch += 'b';
+
+                    const staveNote = new VF.StaveNote({
+                        clef: "treble",
+                        keys: [`${pitch}/${nota.octava}`],
+                        duration: 'q'
+                    });
+
+                    if (nota.alteracion === 'sharp') {
+                        staveNote.addModifier(new VF.Accidental("#"));
+                    } else if (nota.alteracion === 'flat') {
+                        staveNote.addModifier(new VF.Accidental("b"));
+                    } else if (nota.alteracion === 'natural') {
+                        staveNote.addModifier(new VF.Accidental("n"));
+                    }
+
+                    return staveNote;
+                });
+
+                const voice = new VF.Voice({ num_beats: armadura.length, beat_value: 4 });
+                voice.addTickables(staveNotes);
+                new VF.Formatter().joinVoices([voice]).format([voice], 450);
+                voice.draw(context, stave);
+
+                // Agregar interactividad a las notas
+                setTimeout(() => {
+                    const noteheads = contenedor.querySelectorAll('.vf-notehead');
+                    noteheads.forEach((notehead, index) => {
+                        notehead.style.cursor = 'pointer';
+                        notehead.addEventListener('click', () => seleccionarNotaArmadura(index));
+                        notehead.addEventListener('mouseover', () => notehead.style.fill = '#007bff');
+                        notehead.addEventListener('mouseout', () => {
+                            if (index !== notaArmaduraSeleccionada) {
+                                notehead.style.fill = 'black';
+                            }
+                        });
+                    });
+
+                    if (notaArmaduraSeleccionada !== null) {
+                        noteheads[notaArmaduraSeleccionada].style.fill = '#007bff';
+                    }
+                }, 0);
+            }
+
+            actualizarJSON();
+        }
+
+        function agregarNotaArmadura() {
+            if (armadura.length < 12) {
+                armadura.push({
+                    nota: 'C',
+                    alteracion: 'natural',
+                    octava: 4
+                });
+                actualizarArmadura();
+            }
+        }
+
+        function eliminarNotaArmadura() {
+            if (armadura.length > 0) {
+                armadura.pop();
+                notaArmaduraSeleccionada = null;
+                actualizarArmadura();
+            }
+        }
+
+        function seleccionarNotaArmadura(index) {
+            notaArmaduraSeleccionada = index;
+            actualizarArmadura();
+        }
+
+        function actualizarArmadura() {
+            crearPentagramaArmadura();
+            actualizarJSON();
+        }
+
+        function actualizarJSON() {
+            const jsonDisplay = document.getElementById('armadura-json');
+            jsonDisplay.textContent = JSON.stringify(armadura, null, 2);
+        }
+
+        // Manejo de teclado
+        function inicializarEventosTeclado() {
+            document.addEventListener('keydown', (e) => {
+                if (notaArmaduraSeleccionada !== null) {
+                    const nota = armadura[notaArmaduraSeleccionada];
+                    
+                    switch (e.key) {
+                        case 'ArrowUp':
+                            if (e.shiftKey) {
+                                nota.octava = Math.min(8, nota.octava + 1);
+                            } else {
+                                const indiceActual = NOTAS_CROMATICAS.findIndex(
+                                    n => n.nota === nota.nota && n.alteracion === nota.alteracion
+                                );
+                                if (indiceActual !== -1) {
+                                    const siguienteIndice = (indiceActual + 1) % NOTAS_CROMATICAS.length;
+                                    const siguienteNota = NOTAS_CROMATICAS[siguienteIndice];
+                                    nota.nota = siguienteNota.nota;
+                                    nota.alteracion = siguienteNota.alteracion;
+                                }
+                            }
+                            break;
+
+                        case 'ArrowDown':
+                            if (e.shiftKey) {
+                                nota.octava = Math.max(0, nota.octava - 1);
+                            } else {
+                                const indiceActual = NOTAS_CROMATICAS.findIndex(
+                                    n => n.nota === nota.nota && n.alteracion === nota.alteracion
+                                );
+                                if (indiceActual !== -1) {
+                                    const siguienteIndice = (indiceActual - 1 + NOTAS_CROMATICAS.length) % NOTAS_CROMATICAS.length;
+                                    const siguienteNota = NOTAS_CROMATICAS[siguienteIndice];
+                                    nota.nota = siguienteNota.nota;
+                                    nota.alteracion = siguienteNota.alteracion;
+                                }
+                            }
+                            break;
+                    }
+                    
+                    actualizarArmadura();
+                }
+            });
+        }
+
+        // Reproducción de audio
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioContext.state === 'suspended' ? audioContext.resume() : Promise.resolve(audioContext);
+        }
+
+        function noteToFrequency(note, octave) {
+            const A4 = 440;
+            const notes = {'C': -9, 'C#': -8, 'D': -7, 'D#': -6, 'E': -5, 'F': -4, 'F#': -3, 
+                        'G': -2, 'G#': -1, 'A': 0, 'A#': 1, 'B': 2};
+            
+            let noteStr = note.toUpperCase();
+            if (noteStr.includes('b')) noteStr = noteStr.replace('b', '#');
+            
+            const semitonesFromA4 = notes[noteStr] + (octave - 4) * 12;
+            return A4 * Math.pow(2, semitonesFromA4 / 12);
+        }
+
+        function playNote(nota, duration = 0.5) {
+            if (!audioContext || audioContext.state !== 'running') return false;
+
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            let noteName = nota.nota;
+            if (nota.alteracion === 'sharp') noteName += '#';
+            
+            oscillator.frequency.setValueAtTime(noteToFrequency(noteName, nota.octava), audioContext.currentTime);
+            
+            const now = audioContext.currentTime;
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.5, now + 0.05);
+            gainNode.gain.linearRampToValueAtTime(0, now + duration);
+            
+            oscillator.start(now);
+            oscillator.stop(now + duration);
+            
+            return true;
+        }
+
+        function togglePlayArmadura() {
+            if (!isPlaying) {
+                initAudioContext().then(() => {
+                    isPlaying = true;
+                    const btn = document.getElementById('playArmaduraBtn');
+                    btn.innerHTML = '<span class="play-icon">⏹</span> Stop';
+                    btn.classList.add('playing');
+                    playArmadura();
+                });
+            } else {
+                stopPlayback();
+            }
+        }
+
+        function playArmadura() {
+            if (!isPlaying || armadura.length === 0) return;
+            
+            let currentIndex = 0;
+            
+            function playNextNote() {
+                if (currentIndex < armadura.length && isPlaying) {
+                    playNote(armadura[currentIndex]);
+                    currentIndex++;
+                    setTimeout(playNextNote, 500);
+                } else {
+                    stopPlayback();
+                }
+            }
+            
+            playNextNote();
+        }
+
+        function stopPlayback() {
+            isPlaying = false;
+            const btn = document.getElementById('playArmaduraBtn');
+            btn.innerHTML = '<span class="play-icon">▶</span> Play';
+            btn.classList.remove('playing');
+        }
+    </script>
+</body>
+</html>
