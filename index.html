@@ -382,16 +382,12 @@
             const VF = Vex.Flow;
             let contadorCompases = 0;
             let compasSeleccionado = null;
-
-
-
-            // Al inicio del script, después de las variables existentes
             let notaSeleccionada = null;
             let notasCompasActual = [];
-
-            // Añadir al inicio del archivo, junto con las otras variables globales
             let armadura = [];
             let notaArmaduraSeleccionada = null;
+            let scrollEnabled = true;
+
             const SIMBOLOS = {
                 'sharp': '♯',
                 'flat': '♭',
@@ -423,7 +419,6 @@
             const NOTAS_ORDEN = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
 
 
-
             function crearPentagramaVexFlow(contenedor, notas = null) {
                 return new Promise((resolve, reject) => {
                     try {
@@ -442,19 +437,34 @@
 
                         // Usar notas proporcionadas o crear notas por defecto
                         notasCompasActual = notas || [
-                            { pitch: 'c/4', duration: 'q' },
-                            { pitch: 'd/4', duration: 'q' },
-                            { pitch: 'e/4', duration: 'q' },
-                            { pitch: 'f/4', duration: 'q' }
+                            { nota: 'C', alteracion: 'natural', octava: 4, duration: 'q' },
+                            { nota: 'D', alteracion: 'natural', octava: 4, duration: 'q' },
+                            { nota: 'E', alteracion: 'natural', octava: 4, duration: 'q' },
+                            { nota: 'F', alteracion: 'natural', octava: 4, duration: 'q' }
                         ];
 
-                        const staveNotes = notasCompasActual.map(nota =>
-                            new VF.StaveNote({
+                        const staveNotes = notasCompasActual.map(nota => {
+                            let keyStr = nota.nota.toLowerCase();
+                            if (nota.alteracion === 'sharp') keyStr += '#';
+                            if (nota.alteracion === 'flat') keyStr += 'b';
+                            keyStr += '/' + nota.octava;
+
+                            const staveNote = new VF.StaveNote({
                                 clef: "treble",
-                                keys: [nota.pitch],
+                                keys: [keyStr],
                                 duration: nota.duration
-                            })
-                        );
+                            });
+
+                            if (nota.alteracion === 'sharp') {
+                                staveNote.addModifier(new VF.Accidental("#"));
+                            } else if (nota.alteracion === 'flat') {
+                                staveNote.addModifier(new VF.Accidental("b"));
+                            } else if (nota.alteracion === 'natural') {
+                                staveNote.addModifier(new VF.Accidental("n"));
+                            }
+
+                            return staveNote;
+                        });
 
                         const voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
                         voice.addTickables(staveNotes);
@@ -1245,27 +1255,27 @@
             function noteToFrequency(note, octave) {
                 const A4 = 440;
                 const notes = {
-                    'C': -9, 'C#': -8, 'Db': -8,
-                    'D': -7, 'D#': -6, 'Eb': -6,
+                    'C': -9, 'C#': -8, 'DB': -8,
+                    'D': -7, 'D#': -6, 'EB': -6,
                     'E': -5,
-                    'F': -4, 'F#': -3, 'Gb': -3,
-                    'G': -2, 'G#': -1, 'Ab': -1,
-                    'A': 0, 'A#': 1, 'Bb': 1,
-                    'B': 2, 'Bb': 1  // Añadido manejo explícito de Bb
+                    'F': -4, 'F#': -3, 'GB': -3,
+                    'G': -2, 'G#': -1, 'AB': -1,
+                    'A': 0, 'A#': 1, 'BB': 1,
+                    'B': 2
                 };
 
-                // Normalizar la nota
+                // Normalizar la nota y manejar bemoles
                 let noteStr = note.toUpperCase();
-                
-                // Manejar casos especiales
-                if (noteStr === 'BB') noteStr = 'Bb';
-                if (noteStr === 'B♭') noteStr = 'Bb';
+                if (noteStr.includes('b')) {
+                    // Convertir 'b' minúscula a 'B' mayúscula para bemoles
+                    noteStr = noteStr.replace('b', 'B');
+                }
                 
                 let semitonesFromA4 = notes[noteStr];
                 
                 if (semitonesFromA4 === undefined) {
                     console.warn('Nota no reconocida:', noteStr, 'usando A4 como fallback');
-                    return A4; // Frecuencia por defecto
+                    return A4;
                 }
 
                 semitonesFromA4 += (octave - 4) * 12;
